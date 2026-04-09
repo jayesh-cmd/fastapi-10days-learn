@@ -11,4 +11,11 @@ class tododb(base):
     task = Column(String)
     is_done = Column(Boolean, default=False)
 
+class UserDB(base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True)
+    password = Column(String)
+
 base.metadata.create_all(bind=engine)

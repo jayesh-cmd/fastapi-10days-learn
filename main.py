@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI,  Depends, HTTPException
 from pydantic import BaseModel
 from db_conn import SessionLocal
+import schemas
 from schemas import TodoCreate, TodoResponse
-from db_model import tododb
+from db_model import tododb, UserDB
 from sqlalchemy.orm import Session
+from auth import hash_password, verify_password, create_access_token, get_current_user
+from fastapi.security import OAuth2PasswordRequestForm
 
 app = FastAPI()
 
@@ -15,11 +18,42 @@ def get_db():
     finally:
         db.close()
 
+# SignUP
+@app.post("/signup")
+def signup(user: schemas.usercreate, db: Session = Depends(get_db)):
+    hashed = hash_password(user.password)
 
-@app.get("/todos") # get all todo lists
-def get_todos(db: Session = Depends(get_db)):
-    todos = db.query(tododb).all()
-    return todos
+    new_user = UserDB(
+        username = user.username,
+        password = hashed
+    )
+    
+    db.add(new_user)
+    db.commit()
+
+    return {"Message": "User Created"}
+
+# Login
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    # OAuth2PasswordRequestForm gives you username and password
+    db_user = db.query(UserDB).filter(UserDB.username == form_data.username).first()
+    
+    if not db_user or not verify_password(form_data.password, db_user.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    token = create_access_token({"sub": db_user.username})
+    return {"access_token": token, "token_type": "bearer"}
+
+
+
+@app.get("/todos")
+def read_todos(
+    current_user: str = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    todos_list = db.query(tododb).all()
+    return todos_list
 
 # Create Todo
 @app.post("/todos", response_model=TodoResponse)
