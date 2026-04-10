@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import declarative_base
 from db_conn import engine
 
@@ -10,6 +10,8 @@ class tododb(base):
     id = Column(Integer, primary_key=True, index=True)
     task = Column(String)
     is_done = Column(Boolean, default=False)
+
+    user_id = Column(Integer, ForeignKey("users.id"))
 
 class UserDB(base):
     __tablename__ = "users"

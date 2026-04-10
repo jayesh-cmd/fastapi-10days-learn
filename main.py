@@ -1,6 +1,6 @@
 from fastapi import FastAPI,  Depends, HTTPException
 from pydantic import BaseModel
-from db_conn import SessionLocal
+from db_conn import SessionLocal, get_db
 import schemas
 from schemas import TodoCreate, TodoResponse
 from db_model import tododb, UserDB
@@ -49,18 +49,19 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @app.get("/todos")
 def read_todos(
-    current_user: str = Depends(get_current_user), 
+    current_user: UserDB = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    todos_list = db.query(tododb).all()
+    todos_list = db.query(tododb).filter(tododb.user_id == current_user.id).all()
     return todos_list
 
 # Create Todo
 @app.post("/todos", response_model=TodoResponse)
-def create_todo(todo: TodoCreate, db: Session = Depends(get_db)):
+def create_todo(todo: TodoCreate, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
     new_todo = tododb(
         task = todo.task,
-        is_done = todo.is_done
+        is_done = todo.is_done,
+        user_id = current_user.id
     )
     db.add(new_todo)
     db.commit()
@@ -69,16 +70,16 @@ def create_todo(todo: TodoCreate, db: Session = Depends(get_db)):
 
 # Get Todo By ID
 @app.get("/todos/{todo_id}")
-def get_todo(todo_id: int, db: Session = Depends(get_db)):
-    todo = db.query(tododb).filter(tododb.id == todo_id).first()
+def get_todo(todo_id: int, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+    todo = db.query(tododb).filter(tododb.id == todo_id, tododb.user_id == current_user.id).first()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
     return todo
 
 # UPDATE - Update a todo
 @app.put("/todos/{todo_id}")
-def update_todo(todo_id: int, todo_update: TodoCreate, db: Session = Depends(get_db)):
-    todo = db.query(tododb).filter(tododb.id == todo_id).first()
+def update_todo(todo_id: int, todo_update: TodoCreate, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+    todo = db.query(tododb).filter(tododb.id == todo_id, tododb.user_id == current_user.id).first()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
     
@@ -90,11 +91,11 @@ def update_todo(todo_id: int, todo_update: TodoCreate, db: Session = Depends(get
 
 # DELETE - Delete a todo
 @app.delete("/todos/{todo_id}")
-def delete_todo(todo_id: int, db: Session = Depends(get_db)):
-    todo = db.query(tododb).filter(tododb.id == todo_id).first()
+def delete_todo(todo_id: int, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+    todo = db.query(tododb).filter(tododb.id == todo_id, tododb.user_id == current_user.id).first()
     
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
     db.delete(todo)
     db.commit()
-    return {"Message" : "Deleted Successfully"}
+    return {"Message": "Deleted Successfully"}
